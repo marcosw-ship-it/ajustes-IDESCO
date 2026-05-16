@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root { --dark-blue: #000354; --cyan-brand: #5ce1e6; }
+      body { font-family: 'Poppins', sans-serif; background-color: #eef2f3; background-size: cover; min-height: 100vh; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+      
+      .unified-container { width: 100%; max-width: 850px; background: rgba(255,255,255,0.98); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); overflow: hidden; margin-bottom: 20px; position: relative; }
+      
+      .header-section { background: var(--dark-blue); color: white; padding: 25px; text-align: center; position: relative; }
+      
+      .btn-eye { position: absolute; top: 15px; right: 15px; background: transparent; border: none; font-size: 24px; cursor: pointer; opacity: 0.7; z-index: 100; transition: 0.2s; padding: 0; line-height: 1; }
+      .btn-eye:hover { transform: scale(1.1); opacity: 1; }
+
+      .logo-area { display: flex; justify-content: center; gap: 20px; margin-bottom: 15px; }
+      .logo-box { width: 70px; height: 70px; background: white; border-radius: 10px; border: 2px solid var(--cyan-brand); padding: 2px; display: flex; align-items: center; justify-content: center; }
+      .logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      .app-title { font-weight: 700; font-size: 1.6rem; text-transform: uppercase; margin-bottom: 15px; letter-spacing: 1px; }
+      
+      .custom-input { background: rgba(255,255,255,0.15); border: 1px solid var(--cyan-brand); color: white; border-radius: 8px; padding: 12px; width: 100%; height: 50px; margin-bottom: 10px; font-size: 16px; box-sizing: border-box; }
+      .row-inputs { display: flex; gap: 10px; width: 100%; margin-bottom: 5px; }
+      .input-wrapper { flex: 1; }
+
+      @media (max-width: 600px) {
+        .row-inputs { flex-direction: column; gap: 0; }
+        .input-wrapper { width: 100%; margin-bottom: 10px; }
+        .logo-box { width: 50px; height: 50px; }
+        .app-title { font-size: 1.2rem; }
+      }
+
+      .btn-header { background: white; color: var(--dark-blue); border: none; border-radius: 20px; padding: 12px; width: 100%; font-weight: 700; margin-bottom: 8px; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+      .btn-header:hover { background: var(--cyan-brand); transform: translateY(-2px); }
+      
+      .scanner-section { padding: 30px; text-align: center; }
+      
+      .btn-foto { background: var(--dark-blue); color: white; border: 2px solid var(--cyan-brand); padding: 15px; font-size: 18px; border-radius: 10px; width: 100%; max-width: 400px; font-weight: bold; margin: 15px auto; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; }
+      .btn-foto:hover { background: var(--cyan-brand); color: var(--dark-blue); }
+      
+      .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; flex-direction: column; }
+      .metas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; padding: 10px; }
+      .meta-card { border: 1px solid #ccc; border-radius: 8px; padding: 10px; text-align: center; background: #f9f9f9; }
+      
+      /* CLASSES CSS PARA CONTRASTE NO SCANNER */
+      .force-white-text { color: #ffffff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.8) !important; border-color: #ffffff !important; }
+      .force-black-text { color: #000000 !important; text-shadow: none !important; border-color: #000000 !important; }
+    </style>
+  </head>
+  <body>
+    <div id="loader" class="loading-overlay"><div class="spinner-border text-primary" role="status"></div><h5 class="mt-2">Carregando...</h5></div>
+    
+    <div class="unified-container">
+      <div class="header-section">
+        <button class="btn-eye" onclick="abrirModalVisibilidade()" title="Mostrar/Ocultar Botões">👁️</button>
+
+        <div class="logo-area"><div class="logo-box"><img id="imgLogo1"></div><div class="logo-box"><img id="imgLogo2"></div></div>
+        <div class="app-title">SISTEMA DE FREQUÊNCIA</div>
+        
+        <div class="row-inputs">
+          <div class="input-wrapper"><input type="date" id="dataAula" class="custom-input" onchange="salvarConfig()"></div>
+          <div class="input-wrapper"><input type="text" id="nomeMuni" class="custom-input" placeholder="Município" oninput="salvarConfig()"></div>
+        </div>
+
+        <div style="margin-top: 8px;"><select id="periodoSelect" class="custom-input" style="background: var(--cyan-brand); color: #000; font-weight:bold;"><option disabled selected>Carregando colunas...</option></select></div>
+        
+        <div style="margin-top: 15px;">
+          <button id="btnConfig" class="btn-header" onclick="abrirConfig()">⚙️ CONFIGURAÇÕES</button>
+          <button id="btnAssinatura" class="btn-header" onclick="iniciarAssinatura()">📄 Lista Assinatura</button>
+          <button id="btnGrafico" class="btn-header" onclick="iniciarGraficos()">📊 Relatório Gráfico</button>
+          <button id="btnDetalhado" class="btn-header" onclick="iniciarDetalhado()">📋 Relatório Detalhado</button>
+        </div>
+      </div>
+      <div class="scanner-section">
+        <h6 style="color: var(--dark-blue); font-weight: bold;">📸 LEITURA QR CODE</h6>
+        
+        <input type="file" id="qrInputFile" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(event)">
+        <button id="btnTirarFoto" class="btn-foto" onclick="document.getElementById('qrInputFile').click()">
+            📷 TIRAR FOTO DO QR
+        </button>
+
+        <div id="cartaoVisual" style="display:block; min-height: 120px; margin-bottom: 20px; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); transition: all 0.3s; border: 3px dashed #ccc; background-color: #fcfcfc;">
+           <h2 id="cvNome" style="margin: 0; font-weight: 800; text-transform: uppercase; color: #aaa; padding-top: 15px; font-size: 1.4rem;">📷 Aguardando leitura...</h2>
+           <div id="cvGrupo" style="margin-top: 5px; font-size: 18px; display: none; padding: 5px 15px; border-radius: 20px; border: 1px solid;">TURMA X</div>
+        </div>
+        
+        <div id="reader" style="display: none;"></div>
+        <div id="statusMsg" class="alert mt-2 p-1" style="display:none; font-size:12px;"></div>
+        <div style="text-align: left; margin-top: 10px;"><small class="text-muted fw-bold">ÚLTIMOS 5 REGISTROS:</small><ul id="listaHistorico" class="list-group list-group-flush small"></ul></div>
+      </div>
+    </div>
+    
+    <div class="modal fade" id="modalConfig" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Visual</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label>Fundo URL:</label><input type="text" id="cfgBgUrl" class="form-control mb-2" onchange="salvarConfig()">
+        <label>Logo 1 URL:</label><input type="text" id="cfgLogo1" class="form-control mb-2" onchange="salvarConfig()">
+        <label>Logo 2 URL:</label><input type="text" id="cfgLogo2" class="form-control mb-2" onchange="salvarConfig()">
+      </div>
+    </div></div></div>
+
+    <div class="modal fade" id="modalVisibilidade" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>Ocultar Botões</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small">Marque para <b>OCULTAR</b> o botão:</p>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="hideConfig" onchange="salvarConfig()"><label class="form-check-label">⚙️ Configurações</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="hideAss" onchange="salvarConfig()"><label class="form-check-label">📄 Lista Assinatura</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="hideGraf" onchange="salvarConfig()"><label class="form-check-label">📊 Relatório Gráfico</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" id="hideDet" onchange="salvarConfig()"><label class="form-check-label">📋 Relatório Detalhado</label></div>
+      </div>
+    </div></div></div>
+    
+    <div class="modal fade" id="modalMetas" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5>Definir Metas</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body text-center"><h6 class="mb-3">Informe a quantidade esperada de alunos:</h6><div id="listaInputsMetas" class="metas-grid"></div><button class="btn btn-success mt-4 w-50" onclick="gerarGraficosFinais()">GERAR EM NOVA ABA ▶</button></div></div></div></div>
+
+    <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      var dadosCache = null;
+      
+      window.onload=function(){ 
+        try {
+          google.script.run.withSuccessHandler(aplicarConfigServer).carregarConfigServer();
+          carregarPeriodos();
+          setTimeout(iniciarCamera, 1000); 
+          if(!document.getElementById("dataAula").value) document.getElementById("dataAula").valueAsDate=new Date(); 
+        } catch(e) { console.log(e); }
+      };
+      
+      function salvarConfig(){ 
+        var config = {
+          bgUrl: document.getElementById("cfgBgUrl").value,
+          logo1: document.getElementById("cfgLogo1").value,
+          logo2: document.getElementById("cfgLogo2").value,
+          muni: document.getElementById("nomeMuni").value,
+          data: document.getElementById("dataAula").value,
+          hideConfig: document.getElementById("hideConfig").checked,
+          hideAss: document.getElementById("hideAss").checked,
+          hideGraf: document.getElementById("hideGraf").checked,
+          hideDet: document.getElementById("hideDet").checked
+        };
+        google.script.run.salvarConfigServer(JSON.stringify(config));
+        aplicarVisual(config);
+      }
+
+      function aplicarConfigServer(json) {
+        if(json) {
+          var config = JSON.parse(json);
+          document.getElementById("cfgBgUrl").value = config.bgUrl || "";
+          document.getElementById("cfgLogo1").value = config.logo1 || "";
+          document.getElementById("cfgLogo2").value = config.logo2 || "";
+          document.getElementById("nomeMuni").value = config.muni || "";
+          if(config.data) document.getElementById("dataAula").value = config.data;
+          document.getElementById("hideConfig").checked = config.hideConfig || false;
+          document.getElementById("hideAss").checked = config.hideAss || false;
+          document.getElementById("hideGraf").checked = config.hideGraf || false;
+          document.getElementById("hideDet").checked = config.hideDet || false;
+          aplicarVisual(config);
+        }
+      }
+
+      function aplicarVisual(c){ 
+        if(c.bgUrl) document.body.style.backgroundImage=`url('${c.bgUrl}')`; 
+        if(c.logo1) document.getElementById("imgLogo1").src=c.logo1; 
+        if(c.logo2) document.getElementById("imgLogo2").src=c.logo2; 
+        document.getElementById("btnConfig").style.display = c.hideConfig ? 'none' : 'block';
+        document.getElementById("btnAssinatura").style.display = c.hideAss ? 'none' : 'block';
+        document.getElementById("btnGrafico").style.display = c.hideGraf ? 'none' : 'block';
+        document.getElementById("btnDetalhado").style.display = c.hideDet ? 'none' : 'block';
+      }
+
+      function mostrarLoader() { document.getElementById("loader").style.display = "flex"; }
+      function esconderLoader() { document.getElementById("loader").style.display = "none"; }
+      
+      function carregarPeriodos() { 
+        google.script.run.withSuccessHandler(function(p){ 
+          var s=document.getElementById("periodoSelect"); s.innerHTML=""; 
+          if(!p || p.length===0){s.innerHTML="<option>Sem colunas</option>"}
+          else{p.forEach(x=>{var o=document.createElement("option");o.text=x;s.add(o)})} 
+        }).getPeriodosDisponiveis(); 
+      }
+      
+      function abrirModalVisibilidade() {
+        new bootstrap.Modal(document.getElementById('modalVisibilidade')).show();
+      }
+      
+      function abrirConfig(){ 
+        var b = document.getElementById("btnConfig"); b.disabled=true;
+        new bootstrap.Modal(document.getElementById('modalConfig')).show(); 
+        setTimeout(function(){ b.disabled=false; }, 1000);
+      }
+      function iniciarAssinatura(){ 
+        var b = document.getElementById("btnAssinatura"); b.disabled=true; mostrarLoader(); 
+        google.script.run.withSuccessHandler(d => { b.disabled=false; renderAss(d); }).withFailureHandler(() => { b.disabled=false; esconderLoader(); }).getDadosRelatorios(); 
+      }
+      function iniciarDetalhado(){ 
+        var b = document.getElementById("btnDetalhado"); b.disabled=true; mostrarLoader(); 
+        google.script.run.withSuccessHandler(d => { b.disabled=false; renderDet(d); }).withFailureHandler(() => { b.disabled=false; esconderLoader(); }).getDadosRelatorios(); 
+      }
+      function iniciarGraficos(){ 
+        var b = document.getElementById("btnGrafico"); b.disabled=true; mostrarLoader(); 
+        google.script.run.withSuccessHandler(d => { b.disabled=false; prepMetas(d); }).withFailureHandler(() => { b.disabled=false; esconderLoader(); }).getDadosRelatorios(); 
+      }
+
+      function getTextColorForReport(bgColor) {
+        if (!bgColor || bgColor === 'transparent') return 'black';
+        var div = document.createElement("div");
+        div.style.color = "transparent"; div.style.backgroundColor = bgColor; div.style.display = "none";
+        document.body.appendChild(div);
+        var rgb = window.getComputedStyle(div).backgroundColor;
+        document.body.removeChild(div);
+        var m = rgb.match(/\d+/g);
+        if (!m || m.length < 3) return 'black';
+        var yiq = ((parseInt(m[0])*299)+(parseInt(m[1])*587)+(parseInt(m[2])*114))/1000;
+        return (yiq >= 128) ? 'black' : 'white';
+      }
+
+      function gerarJanelaImpressao(htmlConteudo, jsGraficos) {
+        var win = window.open('', '_blank');
+        var css = `<style>body{font-family:'Poppins',sans-serif;margin:0;padding:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:1cm;}.print-header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:15px;}.print-logo{height:55px;object-fit:contain;}.print-info{text-align:center;font-weight:bold;text-transform:uppercase;font-size:14px;flex-grow:1;}.det-container{margin-bottom:30px;break-inside:auto;}.det-header{font-weight:bold;font-size:14px;padding:8px;text-transform:uppercase;break-after:avoid;border:1px solid #000;}.sig-title{padding:8px;font-weight:bold;font-size:13px;text-transform:uppercase;border:1px solid #000;margin-top:10px;}.table-det{width:100%;border-collapse:collapse;font-size:10px;}.table-det th{border:1px solid #ccc;padding:5px;background:#f0f0f0;}.table-det td{border:1px solid #ccc;padding:4px;text-align:center;}.badge-p{background-color:#28a745!important;color:white!important;padding:2px 5px;border-radius:3px;font-weight:bold;}.badge-f{background-color:#dc3545!important;color:white!important;padding:2px 5px;border-radius:3px;font-weight:bold;}.bg-duplicado{background-color:#ffff99!important;}.turma-container-ass{break-after:page;margin-bottom:20px;}.table-sig{width:100%;border-collapse:collapse;}.table-sig th{border:1px solid #000;padding:5px;background:#eee;font-size:11px;}.table-sig td{border:1px solid #000;padding:5px;height:28px;font-size:11px;}.chart-card-print{border:1px solid #ccc;padding:10px;margin-bottom:15px;border-radius:8px;break-inside:avoid;text-align:center;}.turma-nome-grafico{font-weight:bold;font-size:12px;text-transform:uppercase;padding:5px;margin-bottom:10px;border:1px solid #ccc;}.stat-text{font-size:10px;font-weight:bold;color:#000;margin-top:5px;}.destaque-section{margin-top:20px;break-inside:avoid;border:2px solid #333;border-radius:10px;padding:15px;}.dest-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}.dest-card{padding:8px;border-radius:6px;margin-bottom:5px;font-size:11px;display:flex;justify-content:space-between;border:1px solid #ddd;}.dest-good{background-color:#d1e7dd;color:#0f5132;}.dest-bad{background-color:#f8d7da;color:#842029;}</style>`;
+        win.document.write('<html><head>' + css + '<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script></head><body>');
+        win.document.write(htmlConteudo);
+        win.document.write('<script>window.onload=function(){ ' + (jsGraficos||'') + ' setTimeout(function(){ window.print(); }, 1000); };<\/script></body></html>');
+        win.document.close();
+      }
+
+      function getHeaderHTML(titulo) {
+        var l1 = document.getElementById("imgLogo1").src; var l2 = document.getElementById("imgLogo2").src;
+        var m = document.getElementById("nomeMuni").value.toUpperCase(); var d = document.getElementById("dataAula").value.split('-').reverse().join('/');
+        var tDiv = titulo ? `<div style="font-size:12px;margin-top:2px">${titulo}</div>` : "";
+        return `<div class="print-header"><img src="${l1}" class="print-logo"><div class="print-info"><div>${m}</div>${tDiv}<div>DATA: ${d}</div></div><img src="${l2}" class="print-logo"></div>`;
+      }
+      
+      function renderAss(d){ 
+        esconderLoader(); var html = ""; 
+        d.turmas.forEach(t=>{ 
+          var corTexto = getTextColorForReport(t.cor);
+          html += `<div class="turma-container-ass">` + getHeaderHTML("LISTA DE ASSINATURA") + 
+          `<div class="sig-title" style="background:${t.cor}; color:${corTexto}">${t.nome}</div>` + 
+          `<table class="table-sig"><thead><tr><th style="width:5%">Nº</th><th style="width:35%">ALUNO</th><th style="width:60%">ASSINATURA</th></tr></thead><tbody>`;
+          t.alunos.forEach((a,i)=>{ html+=`<tr><td style="text-align:center">${i+1}</td><td>${a.nomeExibicao}</td><td></td></tr>` });
+          html += `</tbody></table></div>`;
+        }); 
+        gerarJanelaImpressao(html, null); 
+      }
+      
+      function renderDet(d){ 
+        esconderLoader(); var html = getHeaderHTML("RELATÓRIO DETALHADO"); html += '<div style="margin-top: 10px;">';
+        d.turmas.forEach((t, index)=>{ 
+          var corTexto = getTextColorForReport(t.cor);
+          html += `<div class="det-container"><div class="det-header" style="background:${t.cor}; color:${corTexto}">${t.nome}</div><table class="table-det"><thead><tr><th style="width:30%;text-align:left">NOME</th>`; 
+          t.colunas.forEach(c=>{ html+=`<th>${c}</th>` }); 
+          html += `</tr></thead><tbody>`; 
+          t.alunos.forEach(a=>{ 
+            var styleTd = a.isDuplicado ? 'class="bg-duplicado"' : ''; 
+            html+=`<tr><td ${styleTd} style="text-align:left">${a.nomeExibicao}</td>`; 
+            a.presencas.forEach(p=>{ html+=`<td><span class="${p?'badge-p':'badge-f'}">${p?'P':'F'}</span></td>`; }); html+=`</tr>`; 
+          }); 
+          html+=`</tbody></table></div>`; 
+        }); html += '</div>'; gerarJanelaImpressao(html, null); 
+      }
+      
+      function prepMetas(d){ 
+        esconderLoader(); dadosCache = d; 
+        var savedMetas = JSON.parse(localStorage.getItem("metasSalvas") || "{}"); var h=""; 
+        d.turmas.forEach((t,k)=>{ 
+          var v = savedMetas[t.nome] || t.totalAlunos; 
+          h+=`<div class="meta-card"><span class="meta-label" style="color:${t.cor}">${t.nome}</span><input type="number" id="meta_${k}" class="form-control form-control-sm text-center" value="${v}"></div>` 
+        }); 
+        document.getElementById("listaInputsMetas").innerHTML=h; new bootstrap.Modal(document.getElementById('modalMetas')).show(); 
+      }
+      
+      function gerarGraficosFinais(){ 
+        bootstrap.Modal.getInstance(document.getElementById('modalMetas')).hide(); 
+        var periodos = dadosCache.periodosDetectados || [];
+        var html = getHeaderHTML("RELATÓRIO GERAL DE FREQUÊNCIA"); var jsGraficos = ""; var novasMetas = {}; 
+        var labelsPeriodos = { "MANHA": "☀️ MANHÃ", "TARDE": "🌤️ TARDE", "NOITE": "🌙 NOITE" };
+        var melhores = {}; var piores = {};
+        periodos.forEach(p => { melhores[p] = {nome: "---", val: -1, meta: 1, pres: 0}; piores[p] = {nome: "---", val: 101, meta: 1, pres: 0}; });
+
+        dadosCache.turmas.forEach((t,k) => { 
+            var meta = parseInt(document.getElementById("meta_"+k).value) || 1; novasMetas[t.nome] = meta; 
+            var corTexto = getTextColorForReport(t.cor);
+            var chartsHTML = ""; var larguraColuna = (100 / periodos.length) - 2; 
+            periodos.forEach(per => {
+              var totalPresenca = (t.stats && t.stats[per] !== undefined) ? t.stats[per] : 0;
+              var porcentagem = (totalPresenca / meta) * 100;
+              if(porcentagem > melhores[per].val) melhores[per] = {nome: t.nome, val: porcentagem, meta: meta, pres: totalPresenca};
+              if(porcentagem < piores[per].val) piores[per] = {nome: t.nome, val: porcentagem, meta: meta, pres: totalPresenca};
+              var corGrafico = (porcentagem < 50) ? "#dc3545" : (porcentagem < 70) ? "#ffc107" : "#198754";
+              var canvasID = "chart_" + k + "_" + per;
+              chartsHTML += `<div style="text-align:center; width:${larguraColuna}%; display:inline-block;"><small style="font-weight:bold;">${labelsPeriodos[per]}</small><div style="height:85px; width:85px; margin:auto;"><canvas id="${canvasID}"></canvas></div><div class="stat-text">${totalPresenca}/${meta}</div></div>`;
+              jsGraficos += `new Chart(document.getElementById("${canvasID}"), {type: 'doughnut', data: {datasets: [{data: [${totalPresenca}, Math.max(0, ${meta} - ${totalPresenca})], backgroundColor: ['${corGrafico}', '#eee'], borderWidth: 0}]}, options: {responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{legend:false, tooltip:false}, animation:false}});`;
+           });
+           html += `<div class="chart-card-print"><div class="turma-nome-grafico" style="background-color: ${t.cor}; color: ${corTexto}">${t.nome}</div><div style="display:flex; justify-content:space-around;">${chartsHTML}</div></div>`; 
+        }); 
+        localStorage.setItem("metasSalvas", JSON.stringify(novasMetas)); 
+        var hD = ""; var hA = ""; periodos.forEach(p => { 
+          hD += `<div class="dest-card dest-good"><span>${labelsPeriodos[p]}: ${melhores[p].nome}</span><b>${melhores[p].val.toFixed(0)}%</b></div>`;
+          hA += `<div class="dest-card dest-bad"><span>${labelsPeriodos[p]}: ${piores[p].nome}</span><b>${piores[p].val.toFixed(0)}%</b></div>`;
+        });
+        html += `<div class="destaque-section"><div class="dest-grid"><div><h6>🏆 DESTAQUES</h6>${hD}</div><div><h6>⚠️ ATENÇÃO</h6>${hA}</div></div></div>`; 
+        gerarJanelaImpressao(html, jsGraficos); 
+      }
+      
+      var html5QrCode;
+      var l = false; 
+      var timeoutCartao = null; // Controle de tempo do cartão
+      
+      function iniciarCamera(){
+        if(typeof Html5Qrcode === 'undefined') return;
+        html5QrCode = new Html5Qrcode("reader");
+      }
+      
+      function handleFileSelect(event) {
+        if (event.target.files.length == 0) return;
+        const file = event.target.files[0];
+        
+        var m = document.getElementById("statusMsg"); 
+        m.style.display = "block"; m.className = "alert alert-info"; m.innerText = "Lendo imagem..."; 
+        
+        var img = new Image();
+        var url = URL.createObjectURL(file);
+        
+        img.onload = function() {
+            URL.revokeObjectURL(url);
+            var canvas = document.createElement("canvas");
+            var ctx = canvas.getContext("2d");
+            
+            var limit = 1000;
+            var w = img.width;
+            var h = img.height;
+            
+            if (w > limit || h > limit) {
+                if (w > h) { h = Math.round(h * limit / w); w = limit; } 
+                else { w = Math.round(w * limit / h); h = limit; }
+            }
+            
+            canvas.width = w;
+            canvas.height = h;
+            ctx.drawImage(img, 0, 0, w, h);
+            
+            canvas.toBlob(function(blob) {
+                var smallFile = new File([blob], "qr.jpg", { type: "image/jpeg" });
+                
+                html5QrCode.scanFile(smallFile, false)
+                .then(decodedText => {
+                    cb(decodedText);
+                })
+                .catch(err => {
+                    m.className = "alert alert-warning"; 
+                    m.innerText = "❌ QR não reconhecido. Dica: Fique a um palmo de distância, foque bem e evite reflexos.";
+                    setTimeout(() => { m.style.display = "none"; }, 5000);
+                });
+            }, "image/jpeg", 0.9);
+        };
+        img.src = url;
+        event.target.value = ""; 
+      }
+
+      function cb(txt){ 
+        if(l) return; l = true;
+        var audio = document.getElementById("beep");
+        if(audio) audio.play().catch(e => console.log(e));
+        
+        // Cancela o zeramento anterior se ler um código novo antes dos 20 segundos
+        clearTimeout(timeoutCartao);
+        
+        var m = document.getElementById("statusMsg"); 
+        var card = document.getElementById("cartaoVisual");
+        var nomeEl = document.getElementById("cvNome");
+        var grupoEl = document.getElementById("cvGrupo");
+
+        m.style.display = "block"; m.className = "alert alert-info"; m.innerText = "Processando..."; 
+        
+        google.script.run.withSuccessHandler(r => { 
+          if(r.erro){ 
+            m.className = "alert alert-danger"; m.innerText = r.msg;
+          } else {
+            m.className = "alert alert-success"; m.innerText = "Confirmado!";
+            
+            // 1. Ajusta o formato visual para "Preenchido"
+            card.style.borderStyle = 'solid';
+            nomeEl.style.paddingTop = '0';
+            nomeEl.style.fontSize = '';
+            nomeEl.style.color = '';
+            grupoEl.style.display = 'inline-block';
+            
+            nomeEl.innerText = r.nome; 
+            grupoEl.innerText = r.grupo;
+            
+            var corFundo = r.cor || '#ffffff';
+            var usarTextoBranco = isCorEscuraUniversal(corFundo);
+            
+            card.classList.remove('force-white-text', 'force-black-text');
+            nomeEl.classList.remove('force-white-text', 'force-black-text');
+            grupoEl.classList.remove('force-white-text', 'force-black-text');
+            
+            var classeCss = usarTextoBranco ? 'force-white-text' : 'force-black-text';
+            
+            card.style.backgroundColor = corFundo;
+            card.style.borderColor = usarTextoBranco ? 'white' : 'black';
+            card.classList.add(classeCss);
+            nomeEl.classList.add(classeCss);
+
+            var bgGrupo = usarTextoBranco ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
+            grupoEl.style.backgroundColor = bgGrupo;
+            grupoEl.classList.add(classeCss);
+
+            var li = document.createElement("li"); li.className = "list-group-item";
+            var corTextoBadge = usarTextoBranco ? 'white' : 'black';
+            li.innerHTML = `<b>${r.nome}</b> <span class="badge" style="background:${corFundo}; color:${corTextoBadge}; border:1px solid #ccc">${r.grupo}</span>`; 
+            
+            var ul = document.getElementById("listaHistorico"); ul.prepend(li); 
+            if(ul.children.length > 5) ul.lastElementChild.remove(); 
+            
+            // 2. Inicia a contagem regressiva de 20 segundos para zerar a tela
+            timeoutCartao = setTimeout(() => {
+                resetarCartaoVisual();
+            }, 20000);
+          } 
+          setTimeout(() => { l = false; m.style.display = "none"; }, 3000); 
+        }).processarPresencaWeb(txt, document.getElementById("periodoSelect").value, "", document.getElementById("dataAula").value); 
+      }
+
+      // Função que devolve o cartão para o estado de "Aguardando"
+      function resetarCartaoVisual() {
+        var card = document.getElementById("cartaoVisual");
+        var nomeEl = document.getElementById("cvNome");
+        var grupoEl = document.getElementById("cvGrupo");
+
+        card.classList.remove('force-white-text', 'force-black-text');
+        nomeEl.classList.remove('force-white-text', 'force-black-text');
+        grupoEl.classList.remove('force-white-text', 'force-black-text');
+
+        card.style.backgroundColor = '#fcfcfc';
+        card.style.borderColor = '#ccc';
+        card.style.borderStyle = 'dashed';
+
+        nomeEl.innerText = "📷 Aguardando leitura...";
+        nomeEl.style.color = "#aaa";
+        nomeEl.style.paddingTop = "15px";
+        nomeEl.style.fontSize = "1.4rem";
+
+        grupoEl.style.display = "none";
+      }
+
+      function isCorEscuraUniversal(corString) {
+        var div = document.createElement("div");
+        div.style.color = "transparent"; div.style.backgroundColor = corString; div.style.display = "none"; 
+        document.body.appendChild(div);
+        var rgbComputado = window.getComputedStyle(div).backgroundColor;
+        document.body.removeChild(div); 
+        var numeros = rgbComputado.match(/\d+/g);
+        if (!numeros || numeros.length < 3) return false;
+        var r = parseInt(numeros[0]); var g = parseInt(numeros[1]); var b = parseInt(numeros[2]);
+        var yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+        return yiq < 128;
+      }
+    </script>
+  </body>
+</html>
