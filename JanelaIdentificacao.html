@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Poppins', sans-serif; padding: 12px; background: #f8f9fa; color: #333; }
+      .card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 15px; margin-bottom: 12px; border-top: 4px solid #000354; }
+      h4 { margin: 0 0 5px 0; color: #000354; font-size: 15px; }
+      .list-item { background: #fff; border: 1px solid #ddd; padding: 10px; margin-bottom: 6px; border-radius: 6px; cursor: pointer; }
+      .list-item:hover { border-color: #000354; background: #f0f4ff; }
+      .name { font-weight: 600; font-size: 13px; display: block; color: #000; }
+      .cpf-label { font-size: 10px; color: #d9534f; font-weight: bold; }
+      .btn { width: 100%; padding: 10px; margin-bottom: 8px; border: none; border-radius: 5px; cursor: pointer; text-align: left; }
+      .btn b { display: block; font-size: 12px; }
+      .btn span { display: block; font-size: 10px; opacity: 0.8; }
+      .btn-move { background: #0056b3; color: white; }
+      .btn-keep { background: #f39c12; color: white; }
+      .btn-fusion { background: #6f42c1; color: white; }
+      .btn-new { background: #28a745; color: white; text-align: center; }
+      .btn-cancel { background: #6c757d; color: white; text-align: center; margin-top: 5px; }
+    </style>
+  </head>
+  <body>
+    <div id="vazio" style="text-align:center; padding-top:40px; color:#999;">🔍 Monitorando suas ações...</div>
+
+    <div id="step1" style="display:none;">
+      <div class="card">
+        <h4>Conflito Detectado</h4>
+        <div id="lista"></div>
+      </div>
+      <button class="btn btn-new" onclick="finalizar('NOVO', null)"><b>✨ CADASTRAR COMO NOVO</b><span>Criar um registro do zero.</span></button>
+      <button class="btn btn-cancel" onclick="reset()">❌ CANCELAR</button>
+    </div>
+
+    <div id="step2" style="display:none;">
+      <div class="card">
+        <h4>O que deseja fazer?</h4>
+        <div id="infoP" style="background:#f1f3f4; padding:8px; border-radius:4px; margin-bottom:12px; font-size:12px;"></div>
+        <div id="areaOpcoes"></div>
+        <button class="btn btn-cancel" onclick="voltar()">⬅️ VOLTAR</button>
+        <button class="btn btn-cancel" style="background:#444" onclick="reset()">❌ CANCELAR TUDO</button>
+      </div>
+    </div>
+
+    <script>
+      var dG = {}; 
+      var idS = null; 
+      var uTs = 0;
+      var bloqueado = false; // Variável de controle para evitar clique duplo
+      
+      setInterval(() => {
+        // Se estiver bloqueado processando algo, não atualiza a tela para não atrapalhar
+        if(bloqueado) return; 
+
+        google.script.run.withSuccessHandler(res => {
+          if(!res) return;
+          var d = JSON.parse(res);
+          // Só atualiza se houver um timestamp novo e não estivermos processando um clique
+          if (d.timestamp > uTs && !bloqueado) {
+            uTs = d.timestamp; dG = d;
+            google.script.run.limparCelulaConflito(d.linhaDestino);
+            montar();
+          }
+        }).getDadosSeletor();
+      }, 1200);
+
+      function montar() {
+        document.getElementById('vazio').style.display = 'none';
+        document.getElementById('step1').style.display = 'block';
+        document.getElementById('step2').style.display = 'none';
+        var container = document.getElementById('lista'); container.innerHTML = "";
+        
+        dG.candidatos.forEach(p => {
+          var div = document.createElement('div'); div.className = 'list-item';
+          var jaEsta = p.turmas.includes(dG.turmaNova);
+          div.onclick = () => {
+            if(bloqueado) return; // Impede interação se estiver processando
+            idS = p.id;
+            document.getElementById('infoP').innerHTML = "<b>" + p.nome + "</b><br>CPF: " + (p.cpf || "---");
+            document.getElementById('step1').style.display = 'none';
+            document.getElementById('step2').style.display = 'block';
+            var area = document.getElementById('areaOpcoes');
+            
+            if (jaEsta) {
+              if (dG.nomeAntigo) area.innerHTML = `<button class="btn btn-fusion" onclick="finalizar('FUNDIR', idS)"><b>⚡ FUNDIR REGISTROS</b><span>Unificar históricos.</span></button>`;
+              else area.innerHTML = `<div style="color:red; font-size:12px; margin-bottom:10px; font-weight:bold; text-align:center;">⚠️ Já cadastrado nesta turma!</div>`;
+            } else {
+              area.innerHTML = `
+                <button class="btn btn-move" onclick="finalizar('MOVER', idS)"><b>🔄 MOVER ALUNO</b><span>Mover para esta turma.</span></button>
+                <button class="btn btn-keep" onclick="finalizar('REVISAR', idS)"><b>➕ DUPLICAR</b><span>Manter em ambas as turmas.</span></button>`;
+            }
+            if(jaEsta) google.script.run.destacarAlunoNaPlanilha(p.id);
+          };
+          div.innerHTML = `<span class="name">${p.nome}</span><span class="cpf-label">CPF: ${p.cpf || '---'}</span><br><span style="font-size:10px;">Turmas: ${p.turmas.join(", ")}</span>`;
+          container.appendChild(div);
+        });
+      }
+
+      function finalizar(acao, id) { 
+        if (bloqueado) return; // SE JÁ CLICOU, NÃO FAZ NADA
+        bloqueado = true; // TRAVA O SISTEMA
+
+        // Feedback visual simples (opcional: muda cursor)
+        document.body.style.cursor = 'wait';
+        var btns = document.getElementsByTagName('button');
+        for(var i=0; i<btns.length; i++) btns[i].style.opacity = '0.5';
+
+        google.script.run.withSuccessHandler(function() {
+             reset(); // O reset vai destravar
+        }).processarDecisaoFinal(acao, id, dG.turmaNova, dG.nomeBusca, dG.nomeAntigo); 
+      }
+
+      function voltar() { 
+        if(bloqueado) return;
+        document.getElementById('step1').style.display = 'block'; 
+        document.getElementById('step2').style.display = 'none'; 
+      }
+
+      function reset() { 
+        bloqueado = false; // DESTRAVA O SISTEMA
+        document.body.style.cursor = 'default';
+        var btns = document.getElementsByTagName('button');
+        for(var i=0; i<btns.length; i++) btns[i].style.opacity = '1';
+
+        document.getElementById('vazio').style.display = 'block'; 
+        document.getElementById('step1').style.display = 'none'; 
+        document.getElementById('step2').style.display = 'none'; 
+        google.script.run.limparConflitoResolvido(); 
+      }
+    </script>
+  </body>
+</html>
